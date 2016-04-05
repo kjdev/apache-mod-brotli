@@ -8,12 +8,12 @@
  *
  *   AddOutputFilterByType BROTLI text/html
  *
- *    # BrotliFilterNote
- *    # BrotliFilterNote Input  brotli_in
- *    # BrotliFilterNote Output brotli_out
- *    # BrotliFilterNote Ratio  brotli_ratio
- *    # LogFormat '"%r" %{brotli_out}n/%{brotli_in}n (%{brotli_ratio}n)' brotli
- *    # CustomLog logs/access_log brotli
+ *   # BrotliFilterNote
+ *   # BrotliFilterNote Input  brotli_in
+ *   # BrotliFilterNote Output brotli_out
+ *   # BrotliFilterNote Ratio  brotli_ratio
+ *   # LogFormat '"%r" %{brotli_out}n/%{brotli_in}n (%{brotli_ratio}n)' brotli
+ *   # CustomLog logs/access_log brotli
  * </IfModule>
  */
 
@@ -52,7 +52,6 @@ typedef struct brotli_filter_config_t
 {
   int compressionlevel;
   int windowSize;
-  //apr_size_t bufferSize;
   const char *note_ratio_name;
   const char *note_input_name;
   const char *note_output_name;
@@ -61,7 +60,6 @@ typedef struct brotli_filter_config_t
 /* windowsize is negative to suppress brotli header */
 #define DEFAULT_COMPRESSION 6
 #define DEFAULT_WINDOWSIZE 19
-//#define DEFAULT_BUFFERSIZE 8096
 
 static APR_OPTIONAL_FN_TYPE(ssl_var_lookup) *mod_brotli_ssl_var = NULL;
 
@@ -72,7 +70,6 @@ create_brotli_server_config(apr_pool_t *p, server_rec *s)
 
   c->compressionlevel = DEFAULT_COMPRESSION;
   c->windowSize = DEFAULT_WINDOWSIZE;
-  //c->bufferSize = DEFAULT_BUFFERSIZE;
 
   return c;
 }
@@ -110,24 +107,6 @@ brotli_set_window_size(cmd_parms *cmd, void *dummy, const char *arg)
 
   return NULL;
 }
-/*
-static const char *
-brotli_set_buffer_size(cmd_parms *cmd, void *dummy, const char *arg)
-{
-  brotli_filter_config *c;
-  c = (brotli_filter_config *)ap_get_module_config(cmd->server->module_config,
-                                                   &brotli_module);
-  int n = atoi(arg);
-
-  if (n <= 0) {
-    return "BrotliBufferSize should be positive";
-  }
-
-  c->bufferSize = (apr_size_t)n;
-
-  return NULL;
-}
-*/
 
 static const char *
 brotli_set_note(cmd_parms *cmd, void *dummy, const char *arg1, const char *arg2)
@@ -159,10 +138,8 @@ typedef struct brotli_ctx_t
 {
   brotli::BrotliCompressor *compressor;
   brotli::BrotliParams params;
-  //unsigned char *buffer;
   apr_bucket_brigade *bb;
   unsigned int filter_init:1;
-  //unsigned int done:1;
   size_t bytes_in;
   size_t bytes_out;
 } brotli_ctx;
@@ -230,6 +207,31 @@ have_ssl_compression(request_rec *r)
     return 0;
   }
   return 1;
+}
+
+static apr_status_t
+brotli_compress(unsigned int last, unsigned int flush,
+                brotli_ctx *ctx, apr_pool_t *pool,
+                struct apr_bucket_alloc_t *bucket_alloc)
+{
+  uint8_t *out;
+  size_t size;
+  if (!ctx->compressor->WriteBrotliData(last, flush, &size, &out)) {
+    return APR_EGENERAL;
+  }
+
+  ctx->bytes_out += size;
+
+  char *buffer = (char *)apr_palloc(pool, size);
+  if (!buffer) {
+    return APR_EGENERAL;
+  }
+  memcpy(buffer, out, size);
+
+  apr_bucket *b = apr_bucket_heap_create(buffer, size, NULL, bucket_alloc);
+  APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
+
+  return APR_SUCCESS;
 }
 
 static apr_status_t
@@ -443,7 +445,6 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 
     if (r->status != HTTP_NOT_MODIFIED) {
       ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-      //ctx->buffer = (unsigned char *)apr_palloc(r->pool, c->bufferSize);
 
       if (ctx->compressor == NULL) {
         ctx->params.quality = c->compressionlevel;
@@ -533,26 +534,12 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 
     if (APR_BUCKET_IS_EOS(e)) {
       /* flush the remaining data from the brotli buffers */
-      uint8_t *out;
-      size_t size;
-      if (!ctx->compressor->WriteBrotliData(1, 0, &size, &out)) {
+      apr_status_t rv = brotli_compress(1, 0, ctx, r->pool, f->c->bucket_alloc);
+      if (rv != APR_SUCCESS) {
         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01386)
-                      "WriteBrotliData error");
-        return APR_EGENERAL;
+                      "Brotli compress error");
+        return rv;
       }
-
-      ctx->bytes_out += size;
-
-      char *buffer = (char *)apr_palloc(r->pool, size);
-      if (!buffer) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01386)
-                      "Brotli buffer error");
-        return APR_EGENERAL;
-      }
-      memcpy(buffer, out, size);
-
-      b = apr_bucket_heap_create(buffer, size, NULL, f->c->bucket_alloc);
-      APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
 
       /* leave notes for logging */
       if (c->note_input_name) {
@@ -597,8 +584,6 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
     }
 
     if (APR_BUCKET_IS_FLUSH(e)) {
-      /* TODO */
-
       /* Remove flush bucket from old brigade anf insert into the new. */
       APR_BUCKET_REMOVE(e);
       APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
@@ -645,6 +630,17 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
         offset += copy_len;
 
         ctx->bytes_in += copy_len;
+
+        if (copy_len == block_space) {
+          /* flush the remaining data from the brotli buffers */
+          apr_status_t rv = brotli_compress(0, 1, ctx, r->pool,
+                                            f->c->bucket_alloc);
+          if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01386)
+                          "Brotli compress error");
+            return rv;
+          }
+        }
       }
     }
 
