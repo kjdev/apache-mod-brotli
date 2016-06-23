@@ -82,7 +82,7 @@ brotli_set_compressionlevel(cmd_parms *cmd, void *dummy, const char *arg)
                                                    &brotli_module);
   int i = atoi(arg);
 
-  if (i <= 0) {
+  if (i < 0) {
     return "BrotliCompression Level should be positive";
   }
 
@@ -99,7 +99,7 @@ brotli_set_window_size(cmd_parms *cmd, void *dummy, const char *arg)
                                                    &brotli_module);
   int i = atoi(arg);
 
-  if (i < 1) {
+  if (i < brotli::kMinWindowBits || i > brotli::kMaxWindowBits) {
     return "BrotliWindowSize should be positive";
   }
 
@@ -470,7 +470,7 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 
         ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01384)
                       "brotli compressor: level: %ld win: %ld",
-                      ctx->params.quality, (1 << ctx->params.lgwin));
+                      ctx->params.quality, ctx->params.lgwin);
       }
 
       /*
