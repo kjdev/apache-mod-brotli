@@ -8,6 +8,9 @@ brotli_SOURCES = \
 	brotli/enc/backward_references.cc \
 	brotli/enc/block_splitter.cc \
 	brotli/enc/brotli_bit_stream.cc \
+	brotli/enc/compress_fragment.cc \
+	brotli/enc/compress_fragment_two_pass.cc \
+	brotli/enc/dictionary.cc \
 	brotli/enc/encode.cc \
 	brotli/enc/encode_parallel.cc \
 	brotli/enc/entropy_encode.cc \
@@ -16,8 +19,7 @@ brotli_SOURCES = \
 	brotli/enc/metablock.cc \
 	brotli/enc/static_dict.cc \
 	brotli/enc/streams.cc \
-	brotli/enc/utf8_util.cc \
-	brotli/enc/dictionary.cc
+	brotli/enc/utf8_util.cc
 
 
 mod_brotli_la_SOURCES = mod_brotli.cc $(brotli_SOURCES)
