@@ -142,6 +142,7 @@ typedef struct brotli_ctx_t
   unsigned int filter_init:1;
   size_t bytes_in;
   size_t bytes_out;
+  size_t ring_size;
 } brotli_ctx;
 
 static apr_status_t
@@ -467,6 +468,7 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 
         ctx->bytes_in = 0;
         ctx->bytes_out = 0;
+        ctx->ring_size = 0;
 
         ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01384)
                       "brotli compressor: level: %ld win: %ld",
@@ -535,6 +537,7 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
     if (APR_BUCKET_IS_EOS(e)) {
       /* flush the remaining data from the brotli buffers */
       apr_status_t rv = brotli_compress(1, 0, ctx, r->pool, f->c->bucket_alloc);
+      ctx->ring_size = 0;
       if (rv != APR_SUCCESS) {
         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01386)
                       "Brotli compress error");
@@ -621,20 +624,23 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
       while (len != offset) {
         size_t copy_len = len - offset;
 
-        if (copy_len > block_space) {
-          copy_len = block_space;
+        if ((ctx->ring_size + copy_len) > block_space) {
+          copy_len = block_space - ctx->ring_size;
         }
 
-        ctx->compressor->CopyInputToRingBuffer(
-          copy_len, reinterpret_cast<const uint8_t *>(data) + offset);
-        offset += copy_len;
+        if (copy_len > 0) {
+          ctx->compressor->CopyInputToRingBuffer(
+            copy_len, reinterpret_cast<const uint8_t *>(data) + offset);
+          offset += copy_len;
+          ctx->ring_size += copy_len;
+          ctx->bytes_in += copy_len;
+        }
 
-        ctx->bytes_in += copy_len;
-
-        if (copy_len == block_space) {
+        if ((copy_len == block_space) || (copy_len == 0)) {
           /* flush the remaining data from the brotli buffers */
           apr_status_t rv = brotli_compress(0, 1, ctx, r->pool,
                                             f->c->bucket_alloc);
+          ctx->ring_size = 0;
           if (rv != APR_SUCCESS) {
             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01386)
                           "Brotli compress error");
