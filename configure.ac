@@ -23,7 +23,12 @@ AC_ARG_WITH([apxs],
 AC_PATH_PROG(APXS, apxs, no, ${APXS_PATH})
 
 AS_IF([test "x${APXS}" = "xno" ],
-      [AC_MSG_ERROR([apxs not found])],
+      [AC_PATH_PROG(APXS2, apxs2, no, ${APXS_PATH})
+       AS_IF([test "x${APXS2}" = "xno" ],
+             [AC_MSG_ERROR([apxs not found])],
+             [test "x${APXS2}" = "x"],
+             [AC_MSG_ERROR([apxs not found])])
+       APXS=${APXS2}],
       [test "x${APXS}" = "x"],
       [AC_MSG_ERROR([apxs not found])])
 
