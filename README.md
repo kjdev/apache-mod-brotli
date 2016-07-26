@@ -1,5 +1,7 @@
 # mod_brotli
 
+[![Build Status](https://travis-ci.org/kjdev/apache-mod-brotli.svg?branch=master)](https://travis-ci.org/kjdev/apache-mod-brotli)
+
 mod_brotli is Brotli compression module for Apache HTTPD Server.
 
 ## Requires
