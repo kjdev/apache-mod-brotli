@@ -34,7 +34,7 @@ LoadModule brotli_module modules/mod_brotli.so
 AddOutputFilterByType BROTLI text/html
 
 # SetOutputFilter BROTLI
-# SetEnvIfNoCase Request_URI \.txt$ no-brotli
+# SetEnvIfNoCase Request_URI \.txt$ no-br
 
 # Compression
 ## BrotliCompressionLevel: 0-11 (default: 6)

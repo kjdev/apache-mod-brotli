@@ -4,7 +4,7 @@
  * LoadModule brotli_module modules/mod_brotli.so
  * <IfModule mod_brotli.cc>
  *   # SetOutputFilter BROTLI
- *   # SetEnvIfNoCase Request_URI \.txt$ no-brotli
+ *   # SetEnvIfNoCase Request_URI \.txt$ no-br
  *
  *   AddOutputFilterByType BROTLI text/html
  *
