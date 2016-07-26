@@ -1,0 +1,32 @@
+language: cpp
+
+sudo: required
+
+matrix:
+  include:
+    - env:
+      - APACHE_VERSION="2.2.x"
+    - env:
+      - APACHE_VERSION="2.4.x"
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - g++-4.8
+
+before_install:
+  - .travis/before_install.sh
+
+install:
+  - ./autogen.sh
+  - ./configure CXX="g++-4.8"
+  - make
+  - .travis/install.sh
+
+before_script:
+  - .travis/before_script.sh
+
+script:
+  - ./tests/test.sh

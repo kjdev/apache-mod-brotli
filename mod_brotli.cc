@@ -48,6 +48,18 @@ extern "C" module AP_MODULE_DECLARE_DATA brotli_module;
 APLOG_USE_MODULE(brotli);
 #endif
 
+#ifndef APLOG_TRACE1
+#define APLOG_TRACE1 APLOG_DEBUG
+#endif
+
+#ifndef APLOG_R_IS_LEVEL
+#define APLOG_R_IS_LEVEL(r,level) false
+#endif
+
+#ifndef APLOGNO
+#define APLOGNO(n) "AH" #n ": "
+#endif
+
 typedef struct brotli_filter_config_t
 {
   int compressionlevel;
