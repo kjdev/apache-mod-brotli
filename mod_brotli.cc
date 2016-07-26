@@ -459,7 +459,7 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 
         ctx->compressor = new brotli::BrotliCompressor(ctx->params);
         if (ctx->compressor == NULL) {
-          ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01383)
+          ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(0474)
                         "unable to init BrotliCompressor: URL %s",
                         r->uri);
           ap_remove_output_filter(f);
@@ -470,7 +470,7 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
         ctx->bytes_out = 0;
         ctx->ring_size = 0;
 
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01384)
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(0485)
                       "brotli compressor: level: %ld win: %ld",
                       ctx->params.quality, ctx->params.lgwin);
       }
@@ -539,7 +539,7 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
       apr_status_t rv = brotli_compress(1, 0, ctx, r->pool, f->c->bucket_alloc);
       ctx->ring_size = 0;
       if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01386)
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(0554)
                       "Brotli compress error");
         return rv;
       }
@@ -642,7 +642,7 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
                                             f->c->bucket_alloc);
           ctx->ring_size = 0;
           if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01386)
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(0657)
                           "Brotli compress error");
             return rv;
           }
