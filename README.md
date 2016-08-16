@@ -24,7 +24,7 @@ mod_brotli is Brotli compression module for Apache HTTPD Server.
 $ install -p -m 755 -D .libs/mod_brotli.so /etc/httpd/modules/mod_brotli.so
 ```
 
-## Configration
+## Configuration
 
 `httpd.conf`:
 
