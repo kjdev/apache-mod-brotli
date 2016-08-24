@@ -26,5 +26,5 @@ mod_brotli_la_SOURCES = mod_brotli.c $(brotli_SOURCES)
 
 mod_brotli_la_CFLAGS = @APACHE_CFLAGS@ @BROTLI_CFLAGS@
 mod_brotli_la_CPPFLAGS = @APACHE_CPPFLAGS@ @BROTLI_CPPFLAGS@
-mod_brotli_la_LDFLAGS = -avoid-version -module @APACHE_LDFLAGS@ @BROTLI_LDFLAGS@
+mod_brotli_la_LDFLAGS = -avoid-version -module @APACHE_LDFLAGS@ @BROTLI_LDFLAGS@ -lm
 mod_brotli_la_LIBS = @APACHE_LIBS@ @BROTLI_LIBS@

@@ -25,6 +25,7 @@
 #  undef PACKAGE_VERSION
 #endif
 
+#include <stdbool.h>
 #include "httpd.h"
 #include "http_config.h"
 #include "http_log.h"

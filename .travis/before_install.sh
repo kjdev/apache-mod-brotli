@@ -8,4 +8,4 @@ if [ "${APACHE_VERSION}" = "2.4.x" ]; then
   sudo apt-get update -qq
 fi
 
-sudo apt-get install -qq apache2 apache2-dev automake libtool autotools-dev make
+sudo apt-get install -qq apache2 apache2-dev automake libtool autotools-dev make curl
