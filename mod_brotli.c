@@ -42,7 +42,7 @@
 #include "brotli/enc/encode.h"
 
 static const char deflateFilterName[] = "BROTLI";
-extern "C" module AP_MODULE_DECLARE_DATA brotli_module;
+module AP_MODULE_DECLARE_DATA brotli_module;
 
 #ifdef APLOG_USE_MODULE
 APLOG_USE_MODULE(brotli);
@@ -69,10 +69,6 @@ typedef struct brotli_filter_config_t
   const char *note_output_name;
 } brotli_filter_config;
 
-/* windowsize is negative to suppress brotli header */
-#define DEFAULT_COMPRESSION 6
-#define DEFAULT_WINDOWSIZE 19
-
 static APR_OPTIONAL_FN_TYPE(ssl_var_lookup) *mod_brotli_ssl_var = NULL;
 
 static void *
@@ -80,8 +76,8 @@ create_brotli_server_config(apr_pool_t *p, server_rec *s)
 {
   brotli_filter_config *c = (brotli_filter_config *)apr_pcalloc(p, sizeof *c);
 
-  c->compressionlevel = DEFAULT_COMPRESSION;
-  c->windowSize = DEFAULT_WINDOWSIZE;
+  c->compressionlevel = BROTLI_DEFAULT_QUALITY;
+  c->windowSize = BROTLI_DEFAULT_WINDOW;
 
   return c;
 }
@@ -98,6 +94,10 @@ brotli_set_compressionlevel(cmd_parms *cmd, void *dummy, const char *arg)
     return "BrotliCompression Level should be positive";
   }
 
+  if (i < BROTLI_MIN_QUALITY || i > BROTLI_MAX_QUALITY) {
+    return "BrotliCompression level is not a valid range";
+  }
+
   c->compressionlevel = i;
 
   return NULL;
@@ -111,8 +111,8 @@ brotli_set_window_size(cmd_parms *cmd, void *dummy, const char *arg)
                                                    &brotli_module);
   int i = atoi(arg);
 
-  if (i < brotli::kMinWindowBits || i > brotli::kMaxWindowBits) {
-    return "BrotliWindowSize should be positive";
+  if (i < kBrotliMinWindowBits || i > kBrotliMaxWindowBits) {
+    return "BrotliWindowSize is not a valid range";
   }
 
   c->windowSize = i;
@@ -148,8 +148,7 @@ brotli_set_note(cmd_parms *cmd, void *dummy, const char *arg1, const char *arg2)
 
 typedef struct brotli_ctx_t
 {
-  brotli::BrotliCompressor *compressor;
-  brotli::BrotliParams params;
+  BrotliEncoderState *state;
   apr_bucket_brigade *bb;
   unsigned int filter_init:1;
   size_t bytes_in;
@@ -162,9 +161,9 @@ brotli_ctx_cleanup(void *data)
 {
   brotli_ctx *ctx = (brotli_ctx *)data;
 
-  if (ctx && ctx->compressor) {
-    delete ctx->compressor;
-    ctx->compressor = NULL;
+  if (ctx && ctx->state) {
+    BrotliEncoderDestroyInstance(ctx->state);
+    ctx->state = NULL;
   }
 
   return APR_SUCCESS;
@@ -229,7 +228,8 @@ brotli_compress(unsigned int last, unsigned int flush,
 {
   uint8_t *out;
   size_t size;
-  if (!ctx->compressor->WriteBrotliData(last, flush, &size, &out)) {
+
+  if (!BrotliEncoderWriteData(ctx->state, last, flush, &size, &out)) {
     return APR_EGENERAL;
   }
 
@@ -459,32 +459,33 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
     if (r->status != HTTP_NOT_MODIFIED) {
       ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
 
-      if (ctx->compressor == NULL) {
-        ctx->params.quality = c->compressionlevel;
-        int wbits = c->windowSize;
-        if (len > 0) {
-          while (len < (1 << (wbits - 1)) && wbits > brotli::kMinWindowBits) {
-            wbits--;
-          }
-        }
-        ctx->params.lgwin = wbits;
-
-        ctx->compressor = new brotli::BrotliCompressor(ctx->params);
-        if (ctx->compressor == NULL) {
+      if (ctx->state == NULL) {
+        ctx->state = BrotliEncoderCreateInstance(0, 0, 0);
+        if (ctx->state == NULL) {
           ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(0474)
-                        "unable to init BrotliCompressor: URL %s",
+                        "unable to init BrotliEncoderCreateInstance: URL %s",
                         r->uri);
           ap_remove_output_filter(f);
           return ap_pass_brigade(f->next, bb);
         }
+
+        uint32_t quality = (uint32_t)c->compressionlevel;
+        uint32_t lgwin = (uint32_t)c->windowSize;
+        if (len > 0) {
+          while (len < (1 << (lgwin - 1)) && lgwin > kBrotliMinWindowBits) {
+            lgwin--;
+          }
+        }
+
+        BrotliEncoderSetParameter(ctx->state, BROTLI_PARAM_QUALITY, quality);
+        BrotliEncoderSetParameter(ctx->state, BROTLI_PARAM_LGWIN, lgwin);
 
         ctx->bytes_in = 0;
         ctx->bytes_out = 0;
         ctx->ring_size = 0;
 
         ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(0485)
-                      "brotli compressor: level: %ld win: %ld",
-                      ctx->params.quality, ctx->params.lgwin);
+                      "brotli encoder: quality: %d lgwin: %d", quality, lgwin);
       }
 
       /*
@@ -529,8 +530,6 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
   }
 
   while (!APR_BRIGADE_EMPTY(bb)) {
-    apr_bucket *b;
-
     /*
      * Optimization: If we are a HEAD request and bytes_sent is not zero
      * it means that we have passed the content-length filter once and
@@ -579,9 +578,9 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
                        : "-");
       }
 
-      if (ctx->compressor) {
-        delete ctx->compressor;
-        ctx->compressor = NULL;
+      if (ctx->state) {
+        BrotliEncoderDestroyInstance(ctx->state);
+        ctx->state = NULL;
       }
 
       /* No need for cleanup any longer */
@@ -632,7 +631,7 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 
     /* write */
     if (len != 0) {
-      size_t offset = 0, block_space = ctx->compressor->input_block_size();
+      size_t offset = 0, block_space = BrotliEncoderInputBlockSize(ctx->state);
       while (len != offset) {
         size_t copy_len = len - offset;
 
@@ -641,8 +640,8 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
         }
 
         if (copy_len > 0) {
-          ctx->compressor->CopyInputToRingBuffer(
-            copy_len, reinterpret_cast<const uint8_t *>(data) + offset);
+          BrotliEncoderCopyInputToRingBuffer(ctx->state, copy_len,
+                                             (const uint8_t *)data + offset);
           offset += copy_len;
           ctx->ring_size += copy_len;
           ctx->bytes_in += copy_len;
@@ -689,23 +688,22 @@ register_hooks(apr_pool_t *p)
 
 static const command_rec brotli_filter_cmds[] = {
   AP_INIT_TAKE1("BrotliCompressionLevel",
-                (cmd_func)brotli_set_compressionlevel, NULL, RSRC_CONF,
+                brotli_set_compressionlevel, NULL, RSRC_CONF,
                 "Set the Brotli Compression Level"),
   AP_INIT_TAKE1("BrotliWindowSize",
-                (cmd_func)brotli_set_window_size, NULL,
+                brotli_set_window_size, NULL,
                 RSRC_CONF, "Set the Brotli window size"),
   /*
   AP_INIT_TAKE1("BrotliBufferSize",
-                (cmd_func)brotli_set_buffer_size, NULL, RSRC_CONF,
+                brotli_set_buffer_size, NULL, RSRC_CONF,
                 "Set the Brotli Buffer Size"),
   */
   AP_INIT_TAKE12("BrotliFilterNote",
-                 (cmd_func)brotli_set_note, NULL, RSRC_CONF,
+                 brotli_set_note, NULL, RSRC_CONF,
                  "Set a note to report on compression ratio"),
   {NULL}
 };
 
-extern "C" {
 module AP_MODULE_DECLARE_DATA brotli_module = {
   STANDARD20_MODULE_STUFF,
   NULL,                         /* dir config creater */
@@ -715,4 +713,3 @@ module AP_MODULE_DECLARE_DATA brotli_module = {
   brotli_filter_cmds,           /* command table */
   register_hooks                /* register hooks */
 };
-}

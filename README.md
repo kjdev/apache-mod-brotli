@@ -39,10 +39,10 @@ AddOutputFilterByType BROTLI text/html
 # SetEnvIfNoCase Request_URI \.txt$ no-br
 
 # Compression
-## BrotliCompressionLevel: 0-11 (default: 6)
+## BrotliCompressionLevel: 0-11 (default: 11)
 BrotliCompressionLevel 10
 
-## BrotliWindowSize: 10-24 (default: 19)
+## BrotliWindowSize: 10-24 (default: 22)
 BrotliWindowSize 22
 
 # Filter note

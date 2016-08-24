@@ -1,9 +1,9 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_INIT(mod_brotli, 0.2.1,[])
+AC_INIT(mod_brotli, 0.3.0,[])
 
-AC_CONFIG_SRCDIR([mod_brotli.cc])
+AC_CONFIG_SRCDIR([mod_brotli.c])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
@@ -12,7 +12,6 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 # Checks for programs.
 AM_PROG_AR
 AC_PROG_LIBTOOL
-AC_PROG_CXX
 
 # Checks for apxs.
 AC_ARG_WITH([apxs],
