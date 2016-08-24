@@ -1,4 +1,4 @@
-language: cpp
+language: c
 
 sudo: required
 
@@ -9,19 +9,12 @@ matrix:
     - env:
       - APACHE_VERSION="2.4.x"
 
-addons:
-  apt:
-    sources:
-      - ubuntu-toolchain-r-test
-    packages:
-      - g++-4.8
-
 before_install:
   - .travis/before_install.sh
 
 install:
   - ./autogen.sh
-  - ./configure CXX="g++-4.8"
+  - ./configure
   - make
   - .travis/install.sh
 
