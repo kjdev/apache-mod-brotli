@@ -32,24 +32,26 @@ $ install -p -m 755 -D .libs/mod_brotli.so /etc/httpd/modules/mod_brotli.so
 # Load module
 LoadModule brotli_module modules/mod_brotli.so
 
-# Output filter
-AddOutputFilterByType BROTLI text/html
+<IfModule brotli_module>
+  # Output filter
+  AddOutputFilterByType BROTLI text/html text/plain text/css text/xml
 
-# SetOutputFilter BROTLI
-# SetEnvIfNoCase Request_URI \.txt$ no-br
+  # SetOutputFilter BROTLI
+  # SetEnvIfNoCase Request_URI \.txt$ no-br
 
-# Compression
-## BrotliCompressionLevel: 0-11 (default: 11)
-BrotliCompressionLevel 10
+  # Compression
+  ## BrotliCompressionLevel: 0-11 (default: 11)
+  BrotliCompressionLevel 10
 
-## BrotliWindowSize: 10-24 (default: 22)
-BrotliWindowSize 22
+  ## BrotliWindowSize: 10-24 (default: 22)
+  BrotliWindowSize 22
 
-# Filter note
-BrotliFilterNote Input  brotli_in
-BrotliFilterNote Output brotli_out
-BrotliFilterNote Ratio  brotli_ratio
+  # Filter note
+  BrotliFilterNote Input  brotli_in
+  BrotliFilterNote Output brotli_out
+  BrotliFilterNote Ratio  brotli_ratio
 
-LogFormat '"%r" %{brotli_out}n/%{brotli_in}n (%{brotli_ratio}n)' brotli
-CustomLog logs/access_log brotli
+  LogFormat '"%r" %{brotli_out}n/%{brotli_in}n (%{brotli_ratio}n)' brotli
+  CustomLog logs/access_log brotli
+</IfModule>
 ```
