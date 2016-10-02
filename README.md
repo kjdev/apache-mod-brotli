@@ -2,33 +2,33 @@
 
 [![Build Status](https://travis-ci.org/kjdev/apache-mod-brotli.svg?branch=master)](https://travis-ci.org/kjdev/apache-mod-brotli)
 
-mod_brotli is Brotli compression module for Apache HTTPD Server.
+mod_brotli is a Brotli compression module for Apache HTTPD Server.
 
 ## Requires
 
-* [brotli](https://github.com/google/brotli.git)
+* [brotli](https://github.com/google/brotli)
 
 ## Build
 
-```
-% git clone --depth=1 --recursive https://github.com/kjdev/apache-mod-brotli.git
-% cd apache-mod-brotli
-% ./autogen.sh
-% ./configure
-% make
+```shell
+git clone --depth=1 --recursive https://github.com/kjdev/apache-mod-brotli.git
+cd apache-mod-brotli
+./autogen.sh
+./configure
+make
 ```
 
 ## Install
 
-```
-$ install -p -m 755 -D .libs/mod_brotli.so /etc/httpd/modules/mod_brotli.so
+```shell
+install -p -m 755 -D .libs/mod_brotli.so /etc/httpd/modules/mod_brotli.so
 ```
 
 ## Configuration
 
 `httpd.conf`:
 
-```
+```apache
 # Load module
 LoadModule brotli_module modules/mod_brotli.so
 
