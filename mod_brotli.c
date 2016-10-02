@@ -1,5 +1,5 @@
 /*
- * mod_deflate.cc: Apache Brotli module
+ * mod_brotli.c: Apache Brotli module
  *
  * LoadModule brotli_module modules/mod_brotli.so
  * <IfModule mod_brotli.cc>
