@@ -44,7 +44,7 @@
 
 #include "brotli/enc/encode.h"
 
-static const char deflateFilterName[] = "BROTLI";
+static const char brotliFilterName[] = "BROTLI";
 module AP_MODULE_DECLARE_DATA brotli_module;
 
 #define AP_BROTLI_ETAG_NOCHANGE 0
@@ -717,7 +717,7 @@ mod_brotli_post_config(apr_pool_t *pconf, apr_pool_t *plog,
 static void
 register_hooks(apr_pool_t *p)
 {
-  ap_register_output_filter(deflateFilterName, brotli_out_filter, NULL,
+  ap_register_output_filter(brotliFilterName, brotli_out_filter, NULL,
                             AP_FTYPE_CONTENT_SET);
   ap_hook_post_config(mod_brotli_post_config, NULL, NULL, APR_HOOK_MIDDLE);
 }
