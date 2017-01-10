@@ -8,6 +8,8 @@
  *
  *   AddOutputFilterByType BROTLI text/html
  *
+ *   # BrotliAlterEtag AddSuffix
+ *
  *   # BrotliFilterNote
  *   # BrotliFilterNote Input  brotli_in
  *   # BrotliFilterNote Output brotli_out
@@ -45,6 +47,10 @@
 static const char deflateFilterName[] = "BROTLI";
 module AP_MODULE_DECLARE_DATA brotli_module;
 
+#define AP_BROTLI_ETAG_NOCHANGE 0
+#define AP_BROTLI_ETAG_ADDSUFFIX 1
+#define AP_BROTLI_ETAG_REMOVE 2
+
 #ifdef APLOG_USE_MODULE
 APLOG_USE_MODULE(brotli);
 #endif
@@ -68,6 +74,7 @@ typedef struct brotli_filter_config_t
   const char *note_ratio_name;
   const char *note_input_name;
   const char *note_output_name;
+  int etag_opt;
 } brotli_filter_config;
 
 static APR_OPTIONAL_FN_TYPE(ssl_var_lookup) *mod_brotli_ssl_var = NULL;
@@ -79,6 +86,7 @@ create_brotli_server_config(apr_pool_t *p, server_rec *s)
 
   c->compressionlevel = BROTLI_DEFAULT_QUALITY;
   c->windowSize = BROTLI_DEFAULT_WINDOW;
+  c->etag_opt = AP_BROTLI_ETAG_ADDSUFFIX;
 
   return c;
 }
@@ -117,6 +125,26 @@ brotli_set_window_size(cmd_parms *cmd, void *dummy, const char *arg)
   }
 
   c->windowSize = i;
+
+  return NULL;
+}
+
+static const char *
+brotli_set_etag(cmd_parms *cmd, void *dummy, const char *arg)
+{
+  brotli_filter_config *c;
+  c = (brotli_filter_config *)ap_get_module_config(cmd->server->module_config,
+                                                   &brotli_module);
+
+  if (!strcasecmp(arg, "NoChange")) {
+    c->etag_opt = AP_BROTLI_ETAG_NOCHANGE;
+  } else if (!strcasecmp(arg, "AddSuffix")) {
+    c->etag_opt = AP_BROTLI_ETAG_ADDSUFFIX;
+  } else if (!strcasecmp(arg, "Remove")) {
+    c->etag_opt = AP_BROTLI_ETAG_REMOVE;
+  } else {
+    return "BrotliAlterEtag accepts only 'NoChange', 'AddSuffix', and 'Remove'";
+  }
 
   return NULL;
 }
@@ -178,10 +206,15 @@ brotli_ctx_cleanup(void *data)
  * and its value already contains double-quotes. PR 39727
  */
 static void
-brotli_check_etag(request_rec *r, const char *transform)
+brotli_check_etag(request_rec *r, const char *transform, int etag_opt)
 {
   const char *etag = apr_table_get(r->headers_out, "ETag");
   apr_size_t etaglen;
+
+  if (etag_opt == AP_BROTLI_ETAG_REMOVE) {
+    apr_table_unset(r->headers_out, "ETag");
+    return;
+  }
 
   if ((etag && ((etaglen = strlen(etag)) > 2))) {
     if (etag[etaglen - 1] == '"') {
@@ -514,7 +547,9 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
       r->content_encoding = apr_table_get(r->headers_out, "Content-Encoding");
     }
     apr_table_unset(r->headers_out, "Content-Length");
-    brotli_check_etag(r, "br");
+    if (c->etag_opt != AP_BROTLI_ETAG_NOCHANGE) {
+      brotli_check_etag(r, "br", c->etag_opt);
+    }
 
     /* For a 304 response, only change the headers */
     if (r->status == HTTP_NOT_MODIFIED) {
@@ -692,8 +727,11 @@ static const command_rec brotli_filter_cmds[] = {
                 brotli_set_compressionlevel, NULL, RSRC_CONF,
                 "Set the Brotli Compression Level"),
   AP_INIT_TAKE1("BrotliWindowSize",
-                brotli_set_window_size, NULL,
-                RSRC_CONF, "Set the Brotli window size"),
+                brotli_set_window_size, NULL, RSRC_CONF,
+                "Set the Brotli window size"),
+  AP_INIT_TAKE1("BrotliAlterEtag",
+                brotli_set_etag, NULL, RSRC_CONF,
+                "Set how mod_brotli should modify ETAG response headers: 'AddSuffix' (default), 'NoChange' (2.2.x behavior), 'Remove'"),
   /*
   AP_INIT_TAKE1("BrotliBufferSize",
                 brotli_set_buffer_size, NULL, RSRC_CONF,

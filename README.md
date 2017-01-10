@@ -46,6 +46,10 @@ LoadModule brotli_module modules/mod_brotli.so
   ## BrotliWindowSize: 10-24 (default: 22)
   BrotliWindowSize 22
 
+  # Specifies how to change the ETag header when the response is compressed
+  ## BrotliAlterEtag: AddSuffix, NoChange, Remove (default: AddSuffix)
+  BrotliAlterEtag AddSuffix
+
   # Filter note
   BrotliFilterNote Input  brotli_in
   BrotliFilterNote Output brotli_out
