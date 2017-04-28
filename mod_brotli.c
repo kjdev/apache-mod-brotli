@@ -42,7 +42,7 @@
 #include "apr_want.h"
 #include "mod_ssl.h"
 
-#include "brotli/enc/encode.h"
+#include "brotli/encode.h"
 
 static const char brotliFilterName[] = "BROTLI";
 module AP_MODULE_DECLARE_DATA brotli_module;

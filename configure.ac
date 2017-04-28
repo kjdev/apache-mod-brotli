@@ -81,8 +81,8 @@ AC_SUBST(APACHE_LIBS)
 
 # Brotli
 BROTLI_CFLAGS=
-#BROTLI_CPPFLAGS="-I./brotli -std=c++11"
-BROTLI_CPPFLAGS="-I./brotli"
+#BROTLI_CPPFLAGS="-I./brotli/include -std=c++11"
+BROTLI_CPPFLAGS="-I./brotli/include"
 BROTLI_LDFLAGS=
 BROTLI_LIBS=
 
