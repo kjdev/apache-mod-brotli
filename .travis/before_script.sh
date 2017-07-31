@@ -1,14 +1,16 @@
 #!/bin/bash
 
 if [ "${APACHE_VERSION}" = "2.4.x" ]; then
-  conf=/etc/apache2/sites-available/000-default.conf
-  sudo cp -f "${TRAVIS_BUILD_DIR}/tests/conf/test.conf" ${conf}
+  default=/etc/apache2/sites-enabled/000-default.conf
+  conf=${TRAVIS_BUILD_DIR}/tests/conf/test.2.4.conf
 else
-  conf=/etc/apache2/sites-available/default
-  sudo bash -c "cat ${TRAVIS_BUILD_DIR}/tests/conf/test.conf | sed -e 's%#\([Allow|Order]\)%\1%gi' -e 's%\(Require\)%#\1%g' > ${conf}"
+  default=/etc/apache2/sites-enabled/000-default
+  conf=${TRAVIS_BUILD_DIR}/tests/conf/test.2.2.conf
 fi
+sudo cp -f ${conf} ${default}
 
-sudo sed -e "s|/var/www/html|${TRAVIS_BUILD_DIR}/tests/html|g" --in-place ${conf}
+sudo mkdir -p /var/www/html/
+sudo cp -R ${TRAVIS_BUILD_DIR}/tests/html/* /var/www/html/
 
 sudo service apache2 restart
 
