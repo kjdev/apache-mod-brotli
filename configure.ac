@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_INIT(mod_brotli, 0.4.0,[])
+AC_INIT(mod_brotli, 0.4.1,[])
 
 AC_CONFIG_SRCDIR([mod_brotli.c])
 AC_CONFIG_HEADERS([config.h])
