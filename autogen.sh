@@ -7,12 +7,15 @@ ACLOCAL="aclocal"
 AUTOHEADER="autoheader"
 AUTOMAKE="automake"
 AUTOCONF="autoconf"
-if [[ `uname` == *"Darwin"* ]]; then
-        echo "It's a Mac, we use glibtoolize instead of libtoolize"
-        LIBTOOLIZE="glibtoolize"
-else
-        LIBTOOLIZE="libtoolize"
-fi
+case `uname` in
+  *"Darwin"*)
+    echo "It's a Mac, we use glibtoolize instead of libtoolize"
+    LIBTOOLIZE="glibtoolize"
+    ;;
+  *)
+    LIBTOOLIZE="libtoolize"
+    ;;
+esac
 
 # Cleanup
 echo "Cleanup"
