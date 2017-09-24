@@ -120,7 +120,7 @@ brotli_set_window_size(cmd_parms *cmd, void *dummy, const char *arg)
                                                    &brotli_module);
   int i = atoi(arg);
 
-  if (i < kBrotliMinWindowBits || i > kBrotliMaxWindowBits) {
+  if (i < BROTLI_MIN_WINDOW_BITS || i > BROTLI_MAX_WINDOW_BITS) {
     return "BrotliWindowSize is not a valid range";
   }
 
@@ -182,7 +182,6 @@ typedef struct brotli_ctx_t
   unsigned int filter_init:1;
   size_t bytes_in;
   size_t bytes_out;
-  size_t ring_size;
 } brotli_ctx;
 
 static apr_status_t
@@ -256,27 +255,35 @@ have_ssl_compression(request_rec *r)
 }
 
 static apr_status_t
-brotli_compress(unsigned int last, unsigned int flush,
+brotli_compress(unsigned int operation,
+                size_t len, const char *data,
                 brotli_ctx *ctx, apr_pool_t *pool,
                 struct apr_bucket_alloc_t *bucket_alloc)
 {
-  uint8_t *out;
-  size_t size;
+  const uint8_t *next_in = (uint8_t *)data;
+  size_t avail_in = len;
 
-  if (!BrotliEncoderWriteData(ctx->state, last, flush, &size, &out)) {
-    return APR_EGENERAL;
+  while (avail_in >= 0) {
+    uint8_t *next_out = NULL;
+    size_t avail_out = 0;
+
+    if (!BrotliEncoderCompressStream(ctx->state, operation,
+                                     &avail_in, &next_in,
+                                     &avail_out, &next_out, NULL)) {
+      return APR_EGENERAL;
+    }
+
+    if (BrotliEncoderHasMoreOutput(ctx->state)) {
+      size_t size = 0;
+      char *buffer = (char *)BrotliEncoderTakeOutput(ctx->state, &size);
+      ctx->bytes_out += size;
+
+      apr_bucket *b = apr_bucket_heap_create(buffer, size, NULL, bucket_alloc);
+      APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
+    } else if (avail_in == 0) {
+      break;
+    }
   }
-
-  ctx->bytes_out += size;
-
-  char *buffer = (char *)apr_palloc(pool, size);
-  if (!buffer) {
-    return APR_EGENERAL;
-  }
-  memcpy(buffer, out, size);
-
-  apr_bucket *b = apr_bucket_heap_create(buffer, size, NULL, bucket_alloc);
-  APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
 
   return APR_SUCCESS;
 }
@@ -506,7 +513,7 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
         uint32_t quality = (uint32_t)c->compressionlevel;
         uint32_t lgwin = (uint32_t)c->windowSize;
         if (len > 0) {
-          while (len < (1 << (lgwin - 1)) && lgwin > kBrotliMinWindowBits) {
+          while (len < (1 << (lgwin - 1)) && lgwin > BROTLI_MIN_WINDOW_BITS) {
             lgwin--;
           }
         }
@@ -516,7 +523,6 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 
         ctx->bytes_in = 0;
         ctx->bytes_out = 0;
-        ctx->ring_size = 0;
 
         ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(0485)
                       "brotli encoder: quality: %d lgwin: %d", quality, lgwin);
@@ -583,8 +589,8 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 
     if (APR_BUCKET_IS_EOS(e)) {
       /* flush the remaining data from the brotli buffers */
-      apr_status_t rv = brotli_compress(1, 0, ctx, r->pool, f->c->bucket_alloc);
-      ctx->ring_size = 0;
+      apr_status_t rv = brotli_compress(BROTLI_OPERATION_FINISH, 0, NULL,
+                                        ctx, r->pool, f->c->bucket_alloc);
       if (rv != APR_SUCCESS) {
         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(0554)
                       "Brotli compress error");
@@ -667,33 +673,12 @@ brotli_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 
     /* write */
     if (len != 0) {
-      size_t offset = 0, block_space = BrotliEncoderInputBlockSize(ctx->state);
-      while (len != offset) {
-        size_t copy_len = len - offset;
-
-        if ((ctx->ring_size + copy_len) > block_space) {
-          copy_len = block_space - ctx->ring_size;
-        }
-
-        if (copy_len > 0) {
-          BrotliEncoderCopyInputToRingBuffer(ctx->state, copy_len,
-                                             (const uint8_t *)data + offset);
-          offset += copy_len;
-          ctx->ring_size += copy_len;
-          ctx->bytes_in += copy_len;
-        }
-
-        if ((copy_len == block_space) || (copy_len == 0)) {
-          /* flush the remaining data from the brotli buffers */
-          apr_status_t rv = brotli_compress(0, 1, ctx, r->pool,
-                                            f->c->bucket_alloc);
-          ctx->ring_size = 0;
-          if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(0657)
-                          "Brotli compress error");
-            return rv;
-          }
-        }
+      apr_status_t rv = brotli_compress(BROTLI_OPERATION_PROCESS, len, data,
+                                        ctx, r->pool, f->c->bucket_alloc);
+      if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(0657)
+                      "Brotli compress error");
+        return APR_EGENERAL;
       }
     }
 
