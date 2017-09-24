@@ -1,5 +1,7 @@
 # mod_brotli
 
+> NOTE: Please use the official module since Apache 2.4.26 : [Apache Module mod_brotli](https://httpd.apache.org/docs/2.4/en/mod/mod_brotli.html)
+
 [![Build Status](https://travis-ci.org/kjdev/apache-mod-brotli.svg?branch=master)](https://travis-ci.org/kjdev/apache-mod-brotli)
 
 mod_brotli is a Brotli compression module for Apache HTTPD Server.
