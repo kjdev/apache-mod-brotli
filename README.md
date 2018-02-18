@@ -10,6 +10,10 @@ mod_brotli is a Brotli compression module for Apache HTTPD Server.
 
 * [brotli](https://github.com/google/brotli)
 
+* Libtool
+
+* Automake
+
 ## Build
 
 ```shell
